@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MOESI Cache Coherency Protocol</title>
+    <style>
+        canvas {
+            border: 1px solid black;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>MOESI Cache Coherency Protocol</h1>
+    <div>
+        <canvas id="canvas" width="1200" height="600"></canvas>
+        <div id="event-log"></div>
+    </div>
+    <div>
+        <label for="processor_id">Processor ID:</label>
+        <select id="processor_id">
+            <option value="0">0</option>
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+        </select>
+        <label for="operation">Operation:</label>
+        <select id="operation">
+            <option value="read">Read</option>
+            <option value="write">Write</option>
+        </select>
+        <label for="address">Address:</label>
+        <select id="address">
+            <option value="0">0</option>
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
+            <option value="5">5</option>
+            <option value="6">6</option>
+            <option value="7">7</option>
+            <option value="8">8</option>
+            <option value="9">9</option>
+            <option value="10">10</option>
+            <option value="11">11</option>
+            <option value="12">12</option>
+            <option value="13">13</option>
+            <option value="14">14</option>
+            <option value="15">15</option>
+        </select>
+        <button id="perform-operation">Perform Operation</button>
+        <button id="reset">Reset</button>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const eventLog = document.getElementById('event-log');
+        const performOperationButton = document.getElementById('perform-operation');
+        const resetButton = document.getElementById('reset');
+
+        const cacheLineWidth = 80;
+        const cacheLineHeight = 40;
+        const cacheSetGap = 20;
+        const processorGap = 150;
+        const memoryGap = 100;
+
+        let cacheState = null;
+
+        function drawCacheState() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+            // Draw processors
+            ctx.font = '16px Arial';
+            let columnX = 0;
+            for (let i = 0; i < cacheState.processors.length; i++) {
+                const processor = cacheState.processors[i];
+                const columnWidth = cacheLineWidth * 2 + cacheSetGap;
+        
+                // Draw processor
+                ctx.fillText(`CPU ${i}`, columnX, 20);
+        
+                // Draw cache sets
+                for (let j = 0; j < processor.cache.sets.length; j++) {
+                    const cacheSet = processor.cache.sets[j];
+                    const y = 40 + j * (cacheLineHeight + cacheSetGap);
+        
+                    ctx.fillText(`Set ${j}`, columnX, y);
+        
+                    for (let k = 0; k < cacheSet.lines.length; k++) {
+                        const cacheLine = cacheSet.lines[k];
+                        const lineX = columnX + k * (cacheLineWidth + cacheSetGap);
+                        const lineY = y + cacheLineHeight;
+        
+                        ctx.strokeRect(lineX, lineY, cacheLineWidth, cacheLineHeight);
+                        ctx.fillText(`[${cacheLine.tag}, ${cacheLine.state}]`, lineX, lineY + cacheLineHeight - 5);
+                    }
+                }
+        
+                columnX += columnWidth + processorGap;
+            }
+        
+            // Draw memory
+            const memoryX = columnX;
+            ctx.fillText('Memory', memoryX, 20);
+            const memoryY = 40;
+            for (let i = 0; i < cacheState.memory.data.length; i++) {
+                const x = memoryX;
+                const y = memoryY + i * (cacheLineHeight + cacheSetGap);
+                ctx.strokeRect(x, y, cacheLineWidth, cacheLineHeight);
+                ctx.fillText(`a${i}`, x, y + cacheLineHeight - 5);
+            }
+
+
+
+
+
+        }
+
+
+
+
+
+
+
+        function updateEventLog(log) {
+            eventLog.innerHTML = '';
+            for (const event of log) {
+                const logEntry = document.createElement('p');
+                logEntry.textContent = event;
+                eventLog.appendChild(logEntry);
+            }
+        }
+
+        async function performOperation() {
+            const processorId = document.getElementById('processor_id').value;
+            const operation = document.getElementById('operation').value;
+            const address = document.getElementById('address').value;
+
+            try {
+                const response = await axios.post('/perform_operation', {
+                    processor_id: parseInt(processorId),
+                    operation,
+                    address: parseInt(address)
+                });
+
+                const { cache_hit, cache_state, cache_event_log } = response.data;
+                cacheState = cache_state;
+                drawCacheState();
+                updateEventLog(cache_event_log);
+
+                console.log(`Cache hit: ${cache_hit}`);
+            } catch (error) {
+                console.error(error);
+            }
+        }
+
+        async function reset() {
+            try {
+                const response = await axios.post('/reset');
+                cacheState = response.data.cache_state;
+                drawCacheState();
+                updateEventLog([]);
+            } catch (error) {
+                console.error(error);
+            }
+        }
+
+        performOperationButton.addEventListener('click', performOperation);
+        resetButton.addEventListener('click', reset);
+    </script>
+</body>
+</html> 
