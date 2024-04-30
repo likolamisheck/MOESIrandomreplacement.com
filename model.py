@@ -142,17 +142,19 @@ class CacheModel:
         self.invalidate_other_copies(processor_id, address)
         return False, self.event_log
 
-    def invalidate_other_copies(self, processor_id, address):
-        tag = address // len(self.processors[0].cache.sets)
-        for other_processor in self.processors:
-            if other_processor.pid != processor_id:
-                cache = other_processor.cache
-                set_index = address % cache.num_sets
-                cache_set = cache.sets[set_index]
-                for line in cache_set.lines:
-                    if line.tag == tag:
-                        line.state = 'I'
-                        self.event_log.append(f"CPU{other_processor.pid}: Invalidating cache line with tag {tag}")
+        
+def invalidate_other_copies(self, processor_id, address):
+    tag = address // len(self.processors[0].cache.sets)  # Calculate the tag from the address
+    for other_processor in self.processors:
+        if other_processor.pid != processor_id:  # Exclude the current processor
+            cache = other_processor.cache
+            set_index = address % cache.num_sets  # Calculate the set index from the address
+            cache_set = cache.sets[set_index]
+            for line in cache_set.lines:
+                if line.tag == tag:  # Check if the tag matches
+                    line.state = 'I'  # Set the state to 'I' (Invalid)
+                    self.event_log.append(f"CPU{other_processor.pid}: Invalidating cache line with tag {tag}")
+        
 
     def display_memory_contents(self):
         return self. memory.data
