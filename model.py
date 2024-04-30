@@ -105,42 +105,72 @@ class CacheModel:
         self.bus_responses += 1
         return False, self.event_log
 
+
+
+
+
+
+
+
+
+
+
+
     def write(self, processor_id, address):
-        self.event_log.clear()
-        processor = self.processors[processor_id]
-        cache = processor.cache
-        set_index = address % cache.num_sets
-        tag = address // cache.num_sets
-        cache_set = cache.sets[set_index]
+    self.event_log.clear()
+    processor = self.processors[processor_id]
+    cache = processor.cache
+    set_index = address % cache.num_sets
+    tag = address // cache.num_sets
+    cache_set = cache.sets[set_index]
 
-        self.bus_access_cycles += 1
-        self.bus_requests += 1
+    self.bus_access_cycles += 1
+    self.bus_requests += 1
 
-        for line in cache_set.lines:
-            if line.tag == tag:
-                if line.state in ['M', 'O', 'E']:
-                    self.event_log.append(f"CPU{processor_id}: Write hit for address {address}")
-                    line.state = 'M'
-                    self.event_log.append(f"CPU{processor_id}: Setting cache line state to M")
-                    self.bus_responses += 1
-                    return True, self.event_log
-                elif line.state in ['I', 'S']:
-                    line.state = 'M'
-                    self.event_log.append(f"CPU{processor_id}: Write miss for address {address}, invalidating other copies")
-                    self.invalidate_other_copies(processor_id, address)
-                    self.event_log.append(f"CPU{processor_id}: Setting cache line state to M")
-                    self.bus_responses += 1
-                    return False, self.event_log
+    for line in cache_set.lines:
+        if line.tag == tag:
+            if line.state == 'E':  # Check if the line is in the Exclusive state
+                self.event_log.append(f"CPU{processor_id}: Write hit for address {address}")
+                line.state = 'M'  # Upgrade state to Modified
+                self.event_log.append(f"CPU{processor_id}: Setting cache line state to M")
+                self.bus_responses += 1
+                return True, self.event_log
+            elif line.state in ['M', 'O', 'E']:  # Also include 'E' state in the check
+                self.event_log.append(f"CPU{processor_id}: Write hit for address {address}")
+                line.state = 'M'
+                self.event_log.append(f"CPU{processor_id}: Setting cache line state to M")
+                self.bus_responses += 1
+                return True, self.event_log
+            elif line.state in ['I', 'S']:
+                line.state = 'M'
+                self.event_log.append(f"CPU{processor_id}: Write miss for address {address}, invalidating other copies")
+                self.invalidate_other_copies(processor_id, address)
+                self.event_log.append(f"CPU{processor_id}: Setting cache line state to M")
+                self.bus_responses += 1
+                return False, self.event_log
 
-        self.event_log.append(f"CPU{processor_id}: Write miss for address {address}, fetching from memory")
-        replaced_line_index = random.randint(0, cache_set.associativity - 1)
-        replaced_line = cache_set.lines[replaced_line_index]
-        replaced_line.tag = tag
-        replaced_line.state = 'M'
-        self.event_log.append(f"CPU{processor_id}: Replacing cache line {replaced_line_index} with tag {tag}, setting state to M")
-        self.bus_responses += 1
-        self.invalidate_other_copies(processor_id, address)
-        return False, self.event_log
+    self.event_log.append(f"CPU{processor_id}: Write miss for address {address}, fetching from memory")
+    replaced_line_index = random.randint(0, cache_set.associativity - 1)
+    replaced_line = cache_set.lines[replaced_line_index]
+    replaced_line.tag = tag
+    replaced_line.state = 'M'
+    self.event_log.append(f"CPU{processor_id}: Replacing cache line {replaced_line_index} with tag {tag}, setting state to M")
+    self.bus_responses += 1
+    self.invalidate_other_copies(processor_id, address)
+    return False, self.event_log
+
+    
+
+
+
+
+
+
+
+
+
+
+
 
         
 def invalidate_other_copies(self, processor_id, address):
