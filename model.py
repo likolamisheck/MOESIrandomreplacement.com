@@ -32,6 +32,9 @@ class CacheModel:
         self.processors = [Processor(pid, Cache(num_sets, associativity)) for pid in range(num_processors)]
         self.cache_size = cache_size
         self.event_log = []
+        self.bus_access_cycles = 0
+        self.bus_requests = 0
+        self.bus_responses = 0
 
     def reset(self):
         for processor in self.processors:
@@ -41,6 +44,9 @@ class CacheModel:
                     line.tag = None
         self.memory.data = [0] * self.memory.size
         self.event_log.clear()
+        self.bus_access_cycles = 0
+        self.bus_requests = 0
+        self.bus_responses = 0
 
     def get_cache_state(self):
         return {
@@ -74,15 +80,20 @@ class CacheModel:
         tag = address // cache.num_sets
         cache_set = cache.sets[set_index]
 
+        self.bus_access_cycles += 1
+        self.bus_requests += 1
+
         for line in cache_set.lines:
             if line.tag == tag:
                 if line.state in ['M', 'O', 'E', 'S']:
                     self.event_log.append(f"CPU{processor_id}: Read hit for address {address}")
+                    self.bus_responses += 1
                     return True, self.event_log
                 elif line.state == 'I':
                     line.state = 'S'
                     self.event_log.append(f"CPU{processor_id}: Read miss for address {address}, fetching from memory")
                     self.event_log.append(f"CPU{processor_id}: Setting cache line state to S")
+                    self.bus_responses += 1
                     return False, self.event_log
 
         self.event_log.append(f"CPU{processor_id}: Read miss for address {address}, fetching from memory")
@@ -91,6 +102,7 @@ class CacheModel:
         replaced_line.tag = tag
         replaced_line.state = 'S'
         self.event_log.append(f"CPU{processor_id}: Replacing cache line {replaced_line_index} with tag {tag}, setting state to S")
+        self.bus_responses += 1
         return False, self.event_log
 
     def write(self, processor_id, address):
@@ -101,18 +113,23 @@ class CacheModel:
         tag = address // cache.num_sets
         cache_set = cache.sets[set_index]
 
+        self.bus_access_cycles += 1
+        self.bus_requests += 1
+
         for line in cache_set.lines:
             if line.tag == tag:
                 if line.state in ['M', 'O', 'E']:
                     self.event_log.append(f"CPU{processor_id}: Write hit for address {address}")
                     line.state = 'M'
                     self.event_log.append(f"CPU{processor_id}: Setting cache line state to M")
+                    self.bus_responses += 1
                     return True, self.event_log
                 elif line.state in ['I', 'S']:
                     line.state = 'M'
                     self.event_log.append(f"CPU{processor_id}: Write miss for address {address}, invalidating other copies")
                     self.invalidate_other_copies(processor_id, address)
                     self.event_log.append(f"CPU{processor_id}: Setting cache line state to M")
+                    self.bus_responses += 1
                     return False, self.event_log
 
         self.event_log.append(f"CPU{processor_id}: Write miss for address {address}, fetching from memory")
@@ -121,6 +138,7 @@ class CacheModel:
         replaced_line.tag = tag
         replaced_line.state = 'M'
         self.event_log.append(f"CPU{processor_id}: Replacing cache line {replaced_line_index} with tag {tag}, setting state to M")
+        self.bus_responses += 1
         self.invalidate_other_copies(processor_id, address)
         return False, self.event_log
 
@@ -135,3 +153,6 @@ class CacheModel:
                     if line.tag == tag:
                         line.state = 'I'
                         self.event_log.append(f"CPU{other_processor.pid}: Invalidating cache line with tag {tag}")
+
+    def display_memory_contents(self):
+        return self. memory.data
